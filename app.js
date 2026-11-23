@@ -12,10 +12,14 @@ const QUESTIONS = [
   "Any YouTube videos you've been into lately?", "If our planet had a secret hideout, what would it look like?",
   "What's the funniest thing you saw this week?", "If you could build anything, what would you build?"
 ];
+const GEM_VOICES = [["Leda","Youthful"],["Puck","Upbeat"],["Zephyr","Bright"],["Sadachbia","Lively"],["Achird","Friendly"],["Aoede","Breezy"],["Laomedeia","Upbeat"],["Sulafat","Warm"],["Fenrir","Excitable"]];
+const TTS_MODELS = [{ api:"interactions", id:"gemini-3.8-flash-tts" }, { api:"generate", id:"gemini-3.1-flash-tts-preview" }, { api:"generate", id:"gemini-2.5-flash-preview-tts" }];
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+const A = new Audio();
 const MODELS = ["gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-3.8-flash", "gemini-2.5-flash"];
 
 let S = { step:"name", kid:"", pal:"", pending:"", color:COLORS.blue, acc:{head:true,scarf:true,crest:true}, msgs:[], notes:[], pin:"",
-  voice:true, vname:"", vpitch:1.25, vrate:1.0, userCount:0, key:"", model:MODELS[0], lang:"en-US", hands:true };
+  voice:true, engine:"gemini", gv:"Leda", ttsErr:"", vname:"", vpitch:1.25, vrate:1.0, userCount:0, key:"", model:MODELS[0], lang:"en-US", hands:true };
 try { const o = JSON.parse(localStorage.getItem(KEY) || "null"); if (o) { S = Object.assign(S, o); S.acc = Object.assign({head:true,scarf:true,crest:true}, o.acc || {}); } } catch(e){}
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
 
@@ -68,11 +72,67 @@ function loadVoices(){
 if (window.speechSynthesis) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
 function pickVoice(){ return VLIST.find(v => v.name === S.vname) || VLIST.find(v => v.lang === S.lang) || VLIST[0] || null; }
 function unlockAudio(){
-  if (audioUnlocked || !window.speechSynthesis) return; audioUnlocked = true;
+  if (audioUnlocked) return; audioUnlocked = true;
+  try { A.src = SILENT_WAV; A.play().catch(() => {}); } catch(e){}
   try { const u = new SpeechSynthesisUtterance("."); u.volume = 0; speechSynthesis.speak(u); } catch(e){}
 }
-function stopSpeaking(){ try { window.speechSynthesis && speechSynthesis.cancel(); } catch(e){} talkFx(false); }
-function speak(text, force){
+function stopSpeaking(){ try { A.pause(); } catch(e){} try { window.speechSynthesis && speechSynthesis.cancel(); } catch(e){} talkFx(false); }
+function findKey(o, test){ if (!o || typeof o !== "object") return null; if (test(o)) return o; for (const k in o) { const r = findKey(o[k], test); if (r) return r; } return null; }
+function toBlobUrl(b64, mime){
+  const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  if (bin.slice(0, 4) === "RIFF") return URL.createObjectURL(new Blob([bytes], { type:"audio/wav" }));
+  const m = /rate=(\d+)/.exec(mime || ""), rate = m ? +m[1] : 24000, h = new DataView(new ArrayBuffer(44));
+  const w = (o, t) => { for (let i = 0; i < t.length; i++) h.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, "RIFF"); h.setUint32(4, 36 + bytes.length, true); w(8, "WAVE"); w(12, "fmt "); h.setUint32(16, 16, true); h.setUint16(20, 1, true); h.setUint16(22, 1, true);
+  h.setUint32(24, rate, true); h.setUint32(28, rate * 2, true); h.setUint16(32, 2, true); h.setUint16(34, 16, true); w(36, "data"); h.setUint32(40, bytes.length, true);
+  return URL.createObjectURL(new Blob([h.buffer, bytes], { type:"audio/wav" }));
+}
+const ttsCache = new Map();
+async function ttsGemini(text, voice){
+  const ck = voice + "|" + text; if (ttsCache.has(ck)) return ttsCache.get(ck);
+  const hdr = { "Content-Type":"application/json", "x-goog-api-key":S.key };
+  const base = "https://generativelanguage.googleapis.com/v1beta";
+  const style = "cheerful, warm and friendly, like a kind buddy talking to a 9 year old";
+  let err = null;
+  for (const m of TTS_MODELS) {
+    try {
+      let r, b64 = "", mime = "audio/wav";
+      if (m.api === "interactions") {
+        r = await fetch(base + "/interactions", { method:"POST", headers:hdr, body:JSON.stringify({ model:m.id,
+          input:[{ type:"user_input", content:[{ type:"text", text, annotations:[{ type:"speech_metadata", style }] }] }],
+          response_format:{ type:"audio" }, generation_config:{ speech_config:[{ voice }] } }) });
+        if (r.ok) { const a = findKey(await r.json(), o => o.type === "audio" && typeof o.data === "string"); b64 = a ? a.data : ""; }
+      } else {
+        r = await fetch(base + "/models/" + m.id + ":generateContent", { method:"POST", headers:hdr, body:JSON.stringify({
+          contents:[{ parts:[{ text:"Say this in a cheerful, warm, friendly voice, like a kind buddy talking to a 9 year old: " + text }] }],
+          generationConfig:{ responseModalities:["AUDIO"], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName:voice } } } } }) });
+        if (r.ok) { const a = findKey(await r.json(), o => (o.inlineData || o.inline_data) && (o.inlineData || o.inline_data).data); const d = a && (a.inlineData || a.inline_data); b64 = d ? d.data : ""; mime = d ? (d.mimeType || d.mime_type || "") : ""; }
+      }
+      if (r && !r.ok) { err = { code:r.status, msg:(await r.text().catch(() => "")).slice(0, 160), model:m.id }; continue; }
+      if (b64) { const url = toBlobUrl(b64, mime); if (ttsCache.size > 30) ttsCache.clear(); ttsCache.set(ck, url); S.ttsErr = ""; return url; }
+      err = { code:"nodata", model:m.id };
+    } catch(e) { err = { code:"network", msg:String(e).slice(0, 80), model:m.id }; }
+  }
+  throw err || { code:"unknown" };
+}
+async function speakGemini(text){
+  const clean = String(text).replace(/[*_#`]/g, "").slice(0, 600); let url;
+  $("orbWrap").classList.add("think");
+  try { url = await ttsGemini(clean, S.gv); }
+  catch(e) { S.ttsErr = (e && (e.model + " " + e.code + " " + (e.msg || ""))).slice(0, 200); save(); $("orbWrap").classList.remove("think"); return false; }
+  $("orbWrap").classList.remove("think");
+  return new Promise(res => {
+    const done = ok => { A.onended = A.onerror = null; talkFx(false); res(ok); };
+    A.onended = () => done(true); A.onerror = () => done(false);
+    A.src = url; talkFx(true); A.play().catch(() => done(false));
+  });
+}
+async function speak(text, force){
+  if (!S.voice && !force) return;
+  if (S.engine === "gemini" && S.key) { if (await speakGemini(text)) return; }
+  return speakDevice(text, force);
+}
+function speakDevice(text, force){
   return new Promise(res => {
     if (!window.speechSynthesis || (!S.voice && !force)) { res(); return; }
     const clean = String(text).replace(/[*_#`]/g, "").slice(0, 600);
@@ -348,15 +408,16 @@ function renderCust(){
     body.appendChild(g);
   } else {
     sub.style.display = "none"; loadVoices();
-    const g = el("div", "", "grid3"); const cur = pickVoice();
-    VLIST.slice(0, 9).forEach((v, i) => {
-      const t = el("button", "", "vt" + (cur && cur.name === v.name ? " sel" : "")); const rot = [-8, 6, -4, 10, -6, 4, -10, 7, -5][i];
+    const g = el("div", "", "grid3"); const cur = pickVoice(); const gem = S.engine === "gemini" && S.key;
+    const items = gem ? GEM_VOICES.map(([n, d]) => ({ name:n, label:n + " · " + d })) : VLIST.slice(0, 9).map(v => ({ name:v.name, label:v.name.replace(/\(.*?\)/g, "").trim().slice(0, 14) }));
+    items.forEach((v, i) => {
+      const t = el("button", "", "vt" + ((gem ? S.gv === v.name : (cur && cur.name === v.name)) ? " sel" : "")); const rot = [-8, 6, -4, 10, -6, 4, -10, 7, -5][i];
       t.innerHTML = '<svg viewBox="0 0 100 100"><g transform="rotate(' + rot + ' 50 50)"><path d="M18 46C8 30 30 12 52 14c18 2 34 16 32 34-2 18-20 36-40 34-16-2-22-20-26-36z" fill="#a97aa0"/><path d="M18 40C8 24 30 8 52 10c18 2 34 16 32 34-2 14-18 28-36 26-16-2-26-14-30-30z" fill="#cd95c7"/></g><g fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M34 40q16-12 32 0"/><path d="M40 47q10-7 20 0"/><path d="M45 54q5-3 10 0"/></g><circle cx="50" cy="60" r="2.6" fill="#fff"/></svg>';
-      t.appendChild(el("span", v.name.replace(/\(.*?\)/g, "").trim().slice(0, 14), "vname"));
-      t.onclick = () => { S.vname = v.name; save(); renderCust(); speak("Hi, I'm " + (S.pal || "your pal") + "!", true); };
+      t.appendChild(el("span", v.label, "vname"));
+      t.onclick = () => { if (gem) S.gv = v.name; else S.vname = v.name; save(); renderCust(); speak("Hi, I'm " + (S.pal || "your pal") + "! Want to play?", true); };
       g.appendChild(t);
     });
-    if (!VLIST.length) body.appendChild(el("p", "No voices found on this device yet. A grown-up can check Settings."));
+    if (!items.length) body.appendChild(el("p", "No voices found on this device yet. A grown-up can check Settings."));
     body.appendChild(g);
   }
 }
@@ -407,7 +468,12 @@ function parentPanel(){
   const m = el("input"); m.type = "text"; m.value = S.model; box.appendChild(m);
   box.appendChild(el("label", "Language"));
   const lang = el("select"); [["en-US", "English"], ["es-US", "Español"]].forEach(([v, t]) => { const o = el("option", t); o.value = v; if (S.lang === v) o.selected = true; lang.appendChild(o); }); box.appendChild(lang);
-  box.appendChild(el("label", "Voice"));
+  box.appendChild(el("label", "Voice engine"));
+  const eng = el("select"); [["gemini", "Gemini voices (natural, needs the key)"], ["device", "Phone voices"]].forEach(([v, t]) => { const o = el("option", t); o.value = v; if (S.engine === v) o.selected = true; eng.appendChild(o); }); box.appendChild(eng);
+  box.appendChild(el("label", "Gemini voice"));
+  const gvs = el("select"); GEM_VOICES.forEach(([n, d]) => { const o = el("option", n + " (" + d + ")"); o.value = n; if (S.gv === n) o.selected = true; gvs.appendChild(o); }); box.appendChild(gvs);
+  if (S.ttsErr) { const e = el("p", "Last Gemini voice problem (used the phone voice instead): " + S.ttsErr); e.style.cssText = "color:#c0392b;font-size:13px"; box.appendChild(e); }
+  box.appendChild(el("label", "Phone voice (used when the engine is Phone voices)"));
   const vs = el("select"); loadVoices(); VLIST.forEach(v => { const o = el("option", v.name + " (" + v.lang + ")"); o.value = v.name; if (pickVoice() && pickVoice().name === v.name) o.selected = true; vs.appendChild(o); }); box.appendChild(vs);
   box.appendChild(el("label", "Voice pitch"));
   const pi = el("input"); pi.type = "range"; pi.min = .6; pi.max = 1.8; pi.step = .05; pi.value = S.vpitch; box.appendChild(pi);
@@ -416,7 +482,7 @@ function parentPanel(){
   const hf = el("label", ""); const cb = el("input"); cb.type = "checkbox"; cb.checked = S.hands; cb.style.cssText = "width:auto;margin-right:8px"; hf.append(cb, document.createTextNode("Hands-free: listen again after each reply")); box.appendChild(hf);
   const row = el("div");
   const test = el("button", "🔊 Test voice", "light");
-  const apply = () => { S.key = k.value.trim(); S.model = m.value.trim() || MODELS[0]; S.lang = lang.value; S.vname = vs.value; S.vpitch = +pi.value; S.vrate = +ra.value; S.hands = cb.checked; save(); loadVoices(); };
+  const apply = () => { S.key = k.value.trim(); S.model = m.value.trim() || MODELS[0]; S.lang = lang.value; S.vname = vs.value; S.engine = eng.value; S.gv = gvs.value; S.vpitch = +pi.value; S.vrate = +ra.value; S.hands = cb.checked; save(); loadVoices(); };
   test.onclick = () => { apply(); speak("Hi, I'm " + (S.pal || "your new pal") + "! Do you like my voice?", true); };
   const saveB = el("button", "Save"); saveB.onclick = () => { apply(); closeModal(); toast("Saved!"); };
   row.append(test, saveB); box.appendChild(row);
