@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Planet Pal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Source+Serif+4:wght@500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;font-family:'Nunito',system-ui,sans-serif;color:#262a44;background:#0e1a2b;overflow:hidden}
+#app{position:relative;height:100%;max-width:520px;margin:0 auto;overflow:hidden;background:#16999a}
+svg{display:block}
+#world{position:absolute;inset:0}
+#world svg{width:100%;height:100%}
+#walker{transition:transform 1.4s ease-in-out}
+#bob{animation:bob 3.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center bottom}
+#bob.talk{animation:hop .5s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.eye{transform-box:fill-box;transform-origin:center;animation:blink 4.6s infinite}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+.lv{opacity:0;transition:opacity 1.5s}.lv.on{opacity:1}
+
+/* top bar */
+.top{position:absolute;top:14px;left:0;right:0;height:56px;z-index:30;pointer-events:none}
+.top button{position:absolute;top:0;border:0;background:none;padding:0;cursor:pointer;pointer-events:auto}
+#btnMenu{left:20px;width:48px;height:48px}
+#btnPals{right:20px;width:52px;height:48px}
+#btnChev{left:50%;margin-left:-26px;width:52px;height:52px;border-radius:50%;background:#fff!important;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+#btnChev svg{transition:transform .25s}
+#btnChev.down svg{transform:rotate(180deg)}
+
+/* quick question card */
+#card{position:absolute;left:16px;right:16px;top:76px;z-index:20;background:#faf8f3;border-radius:26px;padding:22px 18px 22px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:transform .35s,opacity .35s;overflow:hidden;
+ background-image:radial-gradient(circle at 20% 40%,rgba(0,0,0,.035) 0 34px,transparent 35px),radial-gradient(circle at 80% 75%,rgba(0,0,0,.035) 0 40px,transparent 41px),radial-gradient(circle at 60% 15%,rgba(0,0,0,.03) 0 26px,transparent 27px)}
+#card.hide{transform:translateY(-130%);opacity:0;pointer-events:none}
+#card:before{content:"";position:absolute;inset:8px;border:3px dashed #d9d3c3;border-radius:20px;pointer-events:none}
+#card small{display:block;letter-spacing:.2em;font-weight:800;font-size:15px;color:#262a44}
+#card hr{width:42px;border:0;border-top:3px solid #262a44;margin:14px auto 12px}
+#card p{font-family:'Source Serif 4',Georgia,serif;font-weight:500;font-size:25px;line-height:1.22;margin:0 6px 18px}
+.goWrap{display:inline-block;padding:7px;border-radius:999px;background:#e7e5df}
+.go{background:#262a44;color:#fff;border:0;border-radius:999px;padding:15px 34px;font:800 21px 'Nunito',sans-serif;cursor:pointer}
+
+/* bottom bar */
+.bottom{position:absolute;left:0;right:0;bottom:0;height:96px;z-index:30;pointer-events:none}
+.bottom button{position:absolute;bottom:26px;border:0;background:none;padding:0;cursor:pointer;pointer-events:auto;width:56px;height:56px}
+#btnPlus{left:18px}#btnMic{right:24px}
+#btnPlus svg{transition:transform .25s}#btnPlus.open svg{transform:rotate(45deg)}
+#btnMic.rec{background:#e5484d;border-radius:50%}
+#btnChat.on{background:rgba(255,255,255,.22);border-radius:50%}
+#btnGo{position:absolute;right:20px;bottom:120px;width:62px;height:62px;border-radius:50%;border:0;background:#f3f2f0;box-shadow:0 3px 10px rgba(0,0,0,.2);cursor:pointer;z-index:25}
+
+/* attach menu */
+#menu{position:absolute;left:14px;bottom:96px;z-index:40;width:min(78%,340px);background:#eef0f5;border-radius:38px;padding:14px 10px;display:none;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+#menu.show{display:block}
+#menu button{display:flex;align-items:center;gap:18px;width:100%;border:0;background:none;padding:15px 20px;font:700 21px 'Nunito',sans-serif;color:#262a44;text-align:left;cursor:pointer}
+#menu svg{flex:0 0 36px}
+#scrim{position:absolute;inset:0;z-index:35;display:none}
+#scrim.show{display:block}
+
+/* voice mode */
+#voice{position:absolute;inset:0;z-index:15;background:radial-gradient(ellipse at 50% 55%,#2a4d6e 0%,#1b3350 35%,#0f1d30 75%,#0b1524 100%);opacity:0;pointer-events:none;transition:opacity .5s}
+#voice.on{opacity:1;pointer-events:auto}
+#orbWrap{position:absolute;left:50%;top:50%;width:260px;height:260px;margin:-110px 0 0 -130px;transition:transform .3s}
+#orbWrap svg{width:100%;height:100%;overflow:visible}
+#orbWrap.think{animation:pulse 1.4s ease-in-out infinite}
+#orbWrap.talk{animation:pulse .6s ease-in-out infinite}
+#orbWrap.listen #glow{opacity:1}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+#glow{opacity:.55;transition:opacity .3s}
+#caption{position:absolute;left:24px;right:24px;top:62%;text-align:center;color:#dfe9f5;font-size:19px;font-weight:700;line-height:1.35;min-height:60px}
+#mouthT{display:none}
+#orbWrap.talk #mouthI{display:none}#orbWrap.talk #mouthT{display:block;animation:mt .3s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes mt{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(1.1)}}
+
+/* drawer + modal + toast */
+#drawer{position:absolute;top:0;bottom:0;left:0;width:78%;max-width:320px;z-index:50;background:#fbfaf6;transform:translateX(-105%);transition:transform .3s;padding:80px 10px 20px;box-shadow:6px 0 24px rgba(0,0,0,.3)}
+#drawer.show{transform:none}
+#drawer button{display:block;width:100%;text-align:left;border:0;background:none;padding:18px 16px;font:800 20px 'Nunito',sans-serif;color:#262a44;border-radius:14px;cursor:pointer}
+#drawer button:active{background:#eceae2}
+#modal{position:absolute;inset:0;background:rgba(10,15,30,.72);z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
+#modal .box{background:#fff;border-radius:22px;padding:20px;width:100%;max-height:88%;overflow:auto}
+#modal h3{margin:0 0 10px;font-size:22px}
+#modal input[type=password]{font:700 20px 'Nunito';padding:10px;border:2px solid #ccd;border-radius:10px;width:140px;margin-right:6px}
+#modal button{font:800 16px 'Nunito';padding:11px 16px;border-radius:12px;border:0;background:#262a44;color:#fff;margin:4px 4px 4px 0;cursor:pointer}
+#modal button.warn{background:#c0392b}#modal button.light{background:#e8eaf2;color:#262a44}
+#modal button.sel{outline:4px solid #3b82f6}
+#modal pre{white-space:pre-wrap;font:13px/1.4 ui-monospace,monospace;background:#f3f4f8;padding:10px;border-radius:10px;max-height:220px;overflow:auto}
+#modal ul{padding-left:20px;margin:6px 0}
+#modal .sw button{width:46px;height:46px;padding:0;margin:0}
+#toast{position:absolute;left:50%;bottom:190px;transform:translateX(-50%);z-index:70;background:#faf8f3;padding:14px 20px;border-radius:20px;font-weight:800;font-size:17px;box-shadow:0 6px 20px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .3s;width:max-content;max-width:88%;text-align:center}
+#toast.show{opacity:1}
+
+/* customize + family */
+#app.cust .top,#app.cust .bottom,#app.cust #btnGo,#app.cust #card,#app.cust #sheet{display:none!important}
+#app.cust #orbWrap{top:31%;margin-top:-130px}
+#app.cust #world{transform:translateY(-17%) scale(1.1);transform-origin:50% 0}
+#cust{display:none;position:absolute;inset:0;z-index:45;pointer-events:none}
+#app.cust #cust{display:block}
+#cust>*{pointer-events:auto}
+.cbtn{position:absolute;border:0;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2);cursor:pointer;padding:0}
+#cBack{left:22px;top:22px;width:46px;height:46px;border-radius:50%}
+#cTabs{left:50%;margin-left:-58px;top:16px;width:116px;height:54px;border-radius:30px}
+#cTabs button{position:absolute;top:0;width:58px;height:54px;border:0;background:none;padding:0;cursor:pointer}
+#tLook{left:0}#tVoice{right:0}
+#cTabs svg{fill:#d8d8cf;transition:fill .2s}
+#cTabs .on svg{fill:#262a44}
+#cTip{position:absolute;top:-12px;background:#262a44;color:#fff;font:800 15px 'Nunito',sans-serif;padding:7px 15px;border-radius:20px;white-space:nowrap;pointer-events:none}
+#cTip.look{left:-34px}#cTip.voice{right:-34px}
+#cSwap{right:22px;top:24px;width:64px;height:42px;border-radius:24px}
+#cChat{right:22px;bottom:calc(50% + 24px);width:46px;height:46px;border-radius:50%}
+#cSheet{position:absolute;left:0;right:0;bottom:0;height:50%;background:#faf8f3;border-radius:40px 40px 0 0;padding:22px 24px 24px;overflow-y:auto}
+#cSub{display:flex;justify-content:center;gap:40px;margin-bottom:14px}
+#cSub button{border:0;background:none;padding:6px;cursor:pointer}
+#cSub svg{fill:#a3a3a8}#cSub .on svg{fill:#262a44}
+#cSheet h4{margin:8px 0 14px;font:800 30px 'Nunito',sans-serif;color:#262a44}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.tile{position:relative;aspect-ratio:1;border-radius:24px;border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.tile i{display:block;width:48%;aspect-ratio:1;border-radius:50%}
+.tile.sel{outline:5px solid #262a44;outline-offset:-5px}
+.tile.sel:after,.vt.sel:after{content:"";position:absolute;top:-9px;right:-9px;width:36px;height:36px;border-radius:50%;background:#262a44 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Cpath d='M10 19l6 6 11-13' stroke='white' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat}
+.vt{position:relative;aspect-ratio:1;border:0;background:none;cursor:pointer;border-radius:24px;padding:0}
+.vt.sel{outline:5px solid #262a44;outline-offset:-5px}
+.vt svg{width:100%;height:100%}
+.dress{background:#ece9df;font-size:44px}
+#family{display:none;position:absolute;inset:0;z-index:45;background:#c9783a}
+#family.show{display:block}
+#family svg{width:100%;height:100%}
+.fbtn{position:absolute;top:22px;width:56px;height:56px;border-radius:50%;border:0;background:rgba(70,55,50,.8);color:#fff;font:800 26px 'Nunito',sans-serif;cursor:pointer}
+#fPill{position:absolute;left:16px;bottom:24px;display:flex;align-items:center;gap:12px;background:rgba(70,55,60,.85);border-radius:32px;padding:6px 26px 6px 6px;color:#fff;font:800 24px 'Nunito',sans-serif}
+#fPill b{width:50px;height:50px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;color:#262a44;border:3px solid #fff}
+#fPill b+b{margin-left:-26px}
+
+#btnMic{right:24px;width:72px;height:72px;bottom:20px}
+#btnMic svg{width:72px;height:72px}
+#btnMic.rec{background:#e5484d;border-radius:50%}
+#btnMic.hint:before{content:"";position:absolute;inset:-6px;border-radius:50%;border:4px solid rgba(255,255,255,.85);animation:ring 1.4s ease-out infinite}
+@keyframes ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(1.5);opacity:0}}
+#btnGo{bottom:124px}
+#swatches{position:absolute;left:0;right:0;bottom:130px;z-index:33;display:none;justify-content:center;gap:12px;flex-wrap:wrap;padding:0 24px}
+#swatches.show{display:flex}
+#swatches button{width:58px;height:58px;border-radius:50%;border:4px solid #fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+#modal select,#modal input[type=text]{font:700 16px 'Nunito';padding:9px;border:2px solid #ccd;border-radius:10px;width:100%;margin:4px 0 10px}
+#modal input[type=range]{width:100%}
+#modal label{font-weight:800;font-size:14px;display:block;margin-top:6px}
+.vname{position:absolute;left:0;right:0;bottom:-18px;text-align:center;font:700 11px 'Nunito';color:#6b6f85;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- PLANET -->
+  <div id="world">
+    <svg id="scene" viewBox="0 0 360 780" preserveAspectRatio="xMidYMid slice" aria-label="Your planet">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16999a"/><stop offset=".45" stop-color="#5fa5a4"/><stop offset="1" stop-color="#9fb2ab"/></linearGradient>
+        <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#85553f"/><stop offset=".5" stop-color="#8f5c48"/><stop offset="1" stop-color="#6a4038"/></linearGradient>
+        <linearGradient id="gr" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#3f7f3c"/><stop offset=".6" stop-color="#5f9a4c"/><stop offset="1" stop-color="#5f9a4c" stop-opacity="0"/></linearGradient>
+        <clipPath id="hc"><path d="M-200 420 Q-60 340 80 332 Q200 322 330 336 Q440 346 560 400 L560 780 L-200 780Z"/></clipPath>
+        <pattern id="chk" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#ec8fb0"/><rect width="5" height="5" fill="#f2b04a"/><rect x="5" y="5" width="5" height="5" fill="#f2b04a"/></pattern>
+      </defs>
+      <rect width="360" height="780" fill="url(#sky)"/>
+      <g id="stars" class="lv" data-lv="5">
+        <circle cx="40" cy="150" r="2" fill="#fff"/><circle cx="310" cy="130" r="2.4" fill="#fff"/><circle cx="95" cy="230" r="1.6" fill="#fff"/><circle cx="270" cy="250" r="1.8" fill="#fff"/><circle cx="335" cy="290" r="1.5" fill="#fff"/><circle cx="60" cy="290" r="14" fill="#fdf3c8"/>
+      </g>
+      <g id="world2" style="transition:transform 1.4s ease-in-out">
+        <path d="M-200 420 Q-60 340 80 332 Q200 322 330 336 Q440 346 560 400 L560 780 L-200 780Z" fill="url(#hill)"/>
+        <g id="cracks" stroke="#3a2125" stroke-width="2" fill="none" style="transition:opacity 1.5s" opacity=".5">
+          <path d="M40 470 l36 -16 l14 22 l30 8 M250 440 l26 20 l-10 26 M120 600 l34 -18 l20 20 M290 560 l-30 -12 l-6 -24 M60 700 l30 -10 l16 18 M230 680 l-26 -8 l-8 -22 M170 520 l16 14 l-4 18 M20 560 l24 8"/>
+        </g>
+        <g clip-path="url(#hc)">
+          <rect id="g1" class="lv" data-lv="1" x="-200" y="620" width="760" height="160" fill="url(#gr)"/>
+          <rect id="g2" class="lv" data-lv="2" x="-200" y="500" width="760" height="280" fill="url(#gr)" opacity=".7"/>
+          <rect id="g3" class="lv" data-lv="3" x="-200" y="380" width="760" height="400" fill="url(#gr)" opacity=".6"/>
+        </g>
+        <g id="L2" class="lv" data-lv="2">
+          <g stroke="#2f7a34" stroke-width="3"><path d="M60 700v-22M95 720v-18M270 700v-22M305 715v-20M170 740v-24M215 735v-20"/></g>
+          <circle cx="60" cy="676" r="8" fill="#ff7aa8"/><circle cx="95" cy="700" r="8" fill="#ffd34d"/><circle cx="270" cy="676" r="8" fill="#ffd34d"/><circle cx="305" cy="693" r="8" fill="#ff7aa8"/><circle cx="170" cy="714" r="8" fill="#ff7aa8"/><circle cx="215" cy="714" r="8" fill="#fff"/>
+        </g>
+        <g id="L3" class="lv" data-lv="3">
+          <rect x="30" y="500" width="10" height="46" fill="#6b4226"/><circle cx="35" cy="488" r="30" fill="#3f9a4c"/>
+          <rect x="318" y="480" width="10" height="50" fill="#6b4226"/><circle cx="323" cy="466" r="32" fill="#47a655"/>
+        </g>
+        <g id="L4" class="lv" data-lv="4">
+          <ellipse cx="260" cy="650" rx="46" ry="12" fill="#4fb3e8"/><ellipse cx="248" cy="647" rx="14" ry="3" fill="#bfe8ff"/>
+          <rect x="62" y="418" width="46" height="36" fill="#f2d7a1"/><polygon points="56,420 85,392 114,420" fill="#c0504d"/><rect x="78" y="432" width="14" height="22" fill="#6b4226"/>
+        </g>
+        <g id="L5" class="lv" data-lv="5">
+          <circle cx="215" cy="590" r="9" fill="#ffd34d"/><circle cx="212" cy="587" r="1.6" fill="#222"/><circle cx="219" cy="587" r="1.6" fill="#222"/>
+          <circle cx="120" cy="640" r="9" fill="#ff9ad1"/><circle cx="117" cy="637" r="1.6" fill="#222"/><circle cx="124" cy="637" r="1.6" fill="#222"/>
+        </g>
+      </g>
+      <g id="walker" transform="translate(180 520)">
+        <g id="flip">
+          <ellipse cx="0" cy="4" rx="58" ry="10" fill="#000" opacity=".22"/>
+          <g id="fit" transform="scale(1.55) translate(-180 -164)"><g id="bob">
+            <path id="crest" d="M168 62 q4 -20 12 -5 q8 -15 12 5 q-12 7 -24 0z" fill="#c78ae8"/>
+            <path id="body" d="M180 64 C222 64 232 100 224 130 C220 152 205 162 180 162 C155 162 140 152 136 130 C128 100 138 64 180 64Z" fill="#2f7be0"/>
+            <ellipse cx="180" cy="142" rx="28" ry="16" fill="#fff" opacity=".16"/>
+            <g id="headph"><path d="M140 108 C138 56 222 56 220 108" stroke="#2c55a8" stroke-width="6" fill="none"/><rect x="132" y="98" width="13" height="28" rx="6" fill="#2c55a8"/><rect x="215" y="98" width="13" height="28" rx="6" fill="#2c55a8"/></g>
+            <g class="eye"><ellipse cx="165" cy="102" rx="9" ry="11" fill="#fff"/><circle cx="167" cy="104" r="5" fill="#1f2a44"/></g>
+            <g class="eye"><ellipse cx="195" cy="102" rx="9" ry="11" fill="#fff"/><circle cx="197" cy="104" r="5" fill="#1f2a44"/></g>
+            <path d="M170 124 q10 9 20 0" stroke="#1f2a44" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path id="scarf" d="M152 130 L208 130 L180 156Z" fill="url(#chk)"/>
+            <ellipse cx="156" cy="163" rx="15" ry="7" fill="#e8564f"/><ellipse cx="204" cy="163" rx="15" ry="7" fill="#e8564f"/>
+          </g></g>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <!-- VOICE MODE -->
+  <div id="voice">
+    <div id="orbWrap">
+      <svg viewBox="0 0 260 260">
+        <defs>
+          <radialGradient id="orbg" cx="35%" cy="30%" r="85%"><stop id="o1" offset="0" stop-color="#7cc8f0"/><stop id="o2" offset="1" stop-color="#2f7be0"/></radialGradient>
+          <radialGradient id="glowg"><stop id="o3" offset="0" stop-color="#5ec2ee" stop-opacity=".55"/><stop offset="1" stop-color="#5ec2ee" stop-opacity="0"/></radialGradient>
+        </defs>
+        <circle id="glow" cx="130" cy="130" r="150" fill="url(#glowg)"/>
+        <circle cx="130" cy="130" r="98" fill="url(#orbg)"/>
+        <g class="eye"><rect x="86" y="108" width="14" height="22" rx="7" fill="#33424f" opacity=".85"/></g>
+        <g class="eye"><rect x="160" y="108" width="14" height="22" rx="7" fill="#33424f" opacity=".85"/></g>
+        <rect x="82" y="94" width="22" height="6" rx="3" fill="#33424f" opacity=".85"/><rect x="156" y="94" width="22" height="6" rx="3" fill="#33424f" opacity=".85"/>
+        <path id="mouthI" d="M112 152 q18 12 36 0" stroke="#33424f" stroke-width="6" fill="none" stroke-linecap="round" opacity=".85"/>
+        <ellipse id="mouthT" cx="130" cy="156" rx="14" ry="10" fill="#33424f" opacity=".85"/>
+      </svg>
+    </div>
+    
+  </div>
+
+  
+  <!-- VOICE MODE placeholder kept inside scene block -->
+  <!-- QUICK QUESTION -->
+  <div id="card">
+    <small>QUICK QUESTION</small><hr>
+    <p id="cardQ"></p>
+    <span class="goWrap"><button class="go" id="cardGo">Start chat</button></span>
+  </div>
+  <!-- TOP BAR -->
+  <div class="top">
+    <button id="btnMenu" aria-label="Menu"><svg width="48" height="48" viewBox="0 0 48 48"><g stroke="#fff" stroke-width="5" stroke-linecap="round"><path d="M10 14h28"/><path d="M10 24h19"/><path d="M10 34h25"/></g></svg></button>
+    <button id="btnChev" aria-label="Show or hide"><svg width="52" height="52" viewBox="0 0 52 52"><path d="M16 31 l10 -10 l10 10" stroke="#262a44" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button id="btnPals" aria-label="My pal"><svg width="52" height="48" viewBox="0 0 52 48"><g fill="none" stroke="#fff" stroke-width="4"><path d="M24 8c-9 0-16 6-16 15s6 16 16 16 14-7 14-15-5-16-14-16z"/><path d="M33 12c8 2 13 8 13 16 0 9-6 14-13 13" stroke-linecap="round"/></g><circle cx="22" cy="24" r="6" fill="#fff"/></svg></button>
+  </div>
+
+  
+  <!-- BOTTOM BAR -->
+  <button id="btnGo" aria-label="Walk around"><svg width="34" height="34" viewBox="0 0 34 34" style="margin:auto"><path d="M6 8 L28 16 L18 19 L15 29Z" fill="#262a44" stroke="#262a44" stroke-width="3" stroke-linejoin="round"/></svg></button>
+  <div id="swatches"></div>
+  <div class="bottom">
+    <button id="btnPlus" aria-label="Add"><svg width="56" height="56" viewBox="0 0 56 56"><g stroke="#fff" stroke-width="5" stroke-linecap="round"><path d="M14 28h28M28 14v28"/></g></svg></button>
+    <button id="btnMic" aria-label="Talk"><svg viewBox="0 0 56 56"><rect x="21" y="9" width="14" height="28" rx="7" fill="#fff"/><path d="M13 28c0 9 6 15 15 15s15-6 15-15" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><path d="M28 43v5" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/></svg></button>
+  </div>
+
+  <div id="scrim"></div>
+  <div id="menu">
+    <button data-a="cam"><svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#262a44" stroke-width="3" stroke-linejoin="round"><rect x="3" y="9" width="30" height="21" rx="5"/><path d="M12 9l2-4h8l2 4"/><circle cx="18" cy="19.5" r="6"/></svg>Take a photo</button>
+    <button data-a="lib"><svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#262a44" stroke-width="3" stroke-linejoin="round"><rect x="3" y="9" width="24" height="20" rx="4"/><path d="M9 5h20a4 4 0 0 1 4 4v16"/><path d="M5 25l7-7 6 6 4-4 5 5" /></svg>Choose a photo</button>
+    <button data-a="file"><svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#262a44" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M28 16l-10 10a6 6 0 0 1-9-9l11-11a4 4 0 0 1 6 6L15 23a2 2 0 0 1-3-3l9-9"/></svg>Choose a file</button>
+    <button data-a="video"><svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#262a44" stroke-width="3" stroke-linejoin="round"><rect x="3" y="8" width="21" height="20" rx="5"/><path d="M24 15l9-5v16l-9-5z"/></svg>Video chat</button>
+    <button data-a="screen"><svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#262a44" stroke-width="3" stroke-linejoin="round"><rect x="3" y="3" width="22" height="16" rx="4"/><rect x="10" y="12" width="23" height="18" rx="4" fill="#eef0f5"/></svg>Share your screen</button>
+  </div>
+  <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
+  <input type="file" id="fLib" accept="image/*" hidden>
+  <input type="file" id="fAny" accept="image/*" hidden>
+  <div id="drawer">
+    <button id="dJournal">📓 My Journal</button>
+    <button id="dSound">🔊 Sound: on</button>
+    <button id="dFamily">👪 Family</button>
+    <button id="dParent">🔒 Grown-ups</button>
+    <button id="dClose">Close</button>
+  </div>
+  <div id="cust">
+    <button class="cbtn" id="cBack" aria-label="Back"><svg width="46" height="46" viewBox="0 0 46 46"><path d="M27 12 L16 23 L27 34" stroke="#262a44" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="cbtn" id="cTabs">
+      <button id="tLook" class="on" aria-label="Appearance"><svg width="58" height="54" viewBox="0 0 58 54"><path d="M29 13c-9 0-16 6-16 14 0 7 5 13 11 13 3 0 3-3 5-4 3-2 8 2 11-3 3-8-2-20-11-20z"/><circle cx="22" cy="23" r="2.6" fill="#fff"/><circle cx="29" cy="20" r="2.6" fill="#fff"/><circle cx="36" cy="23" r="2.6" fill="#fff"/><circle cx="23" cy="31" r="3" fill="#fff"/></svg></button>
+      <button id="tVoice" aria-label="Voice"><svg width="58" height="54" viewBox="0 0 58 54"><path d="M38 11a7 7 0 0 1 9 9l-4 4-9-9z"/><path d="M31 18l9 9-14 14c-3 3-8 2-10-1l-2-2c-2-3-1-6 1-8z"/></svg></button>
+      <div id="cTip" class="look">Appearance</div>
+    </div>
+    <button class="cbtn" id="cSwap" aria-label="Switch view"><svg width="64" height="42" viewBox="0 0 64 42"><ellipse cx="22" cy="21" rx="14" ry="12" fill="#262a44"/><circle cx="17" cy="20" r="2.4" fill="#fff"/><circle cx="25" cy="20" r="2.4" fill="#fff"/><g stroke="#262a44" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M52 12H42m0 0l4-4m-4 4l4 4"/><path d="M42 29h10m0 0l-4-4m4 4l-4 4"/></g></svg></button>
+    <div id="cSheet"><div id="cSub"></div><div id="cBody"></div></div>
+  </div>
+  <div id="family">
+    <svg viewBox="0 0 360 780" preserveAspectRatio="xMidYMid slice">
+      <defs><linearGradient id="fw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8692f"/><stop offset=".4" stop-color="#e9a566"/><stop offset=".55" stop-color="#d79a8a"/><stop offset="1" stop-color="#b9a4b8"/></linearGradient></defs>
+      <rect width="360" height="780" fill="url(#fw)"/>
+      <ellipse cx="40" cy="190" rx="200" ry="115" fill="#fdecc9"/><ellipse cx="320" cy="20" rx="170" ry="105" fill="#fdecc9" opacity=".95"/>
+      <rect x="128" y="0" width="16" height="70" fill="#e08a50"/><ellipse cx="136" cy="125" rx="52" ry="68" fill="#ffb3dd"/>
+      <rect x="205" y="0" width="12" height="30" fill="#e08a50"/><ellipse cx="211" cy="62" rx="46" ry="60" fill="#ffa6d6"/>
+      <ellipse cx="180" cy="520" rx="330" ry="150" fill="#b4541f"/>
+      <g fill="#8fa3c6"><ellipse cx="60" cy="448" rx="70" ry="40"/><ellipse cx="180" cy="420" rx="80" ry="38"/><ellipse cx="290" cy="450" rx="70" ry="40"/><ellipse cx="25" cy="520" rx="40" ry="45"/><ellipse cx="335" cy="525" rx="40" ry="45"/></g>
+      <path d="M62 540 Q180 600 300 540 L290 580 Q180 640 72 580Z" fill="#1f3350"/>
+      <ellipse cx="180" cy="510" rx="125" ry="42" fill="#fde1b5"/><ellipse cx="180" cy="500" rx="122" ry="38" fill="#fdebcf"/><ellipse cx="190" cy="494" rx="14" ry="9" fill="#7c8a55"/>
+      <ellipse cx="70" cy="640" rx="130" ry="60" fill="#f98ba8"/><ellipse cx="300" cy="700" rx="90" ry="70" fill="#f59b42"/><ellipse cx="300" cy="640" rx="34" ry="16" fill="#e94b3c"/>
+      <polygon points="150,780 190,720 240,740 260,780" fill="#3d574f"/><polygon points="270,700 330,740 350,780 290,770" fill="#3d574f"/>
+      <ellipse cx="110" cy="386" rx="26" ry="5" fill="#000" opacity=".15"/>
+      <use href="#fit" transform="translate(110 392) scale(.85)"/>
+    </svg>
+    <button class="fbtn" id="fBack" aria-label="Back">‹</button>
+    <button class="fbtn" id="fHelp" style="right:22px" aria-label="Help">?</button>
+    <div id="fPill"><b id="fKid">K</b><b id="fPal"></b>Family</div>
+  </div>
+  <div id="modal"><div class="box" id="modalBox"></div></div>
+  <div id="toast"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
